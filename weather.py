@@ -18,6 +18,7 @@ def config_handler(conf_path):
   result = {
     'geo_api': config.get('ezwthr', 'geo_api'),
     'weather_api': config.get('ezwthr', 'weather_api'),
+    'temp_toggle': config.getboolean('ezwthr', 'show_temperature'),
     'icons': {
       1: config.get('icons', 'sunny'),
       2: config.get('icons', 'mostly_sunny'),
@@ -44,13 +45,21 @@ def get_geo_data(public_ip, api_key):
     sys.exit(1)
   return (geodata.json()['latitude'],geodata.json()['longitude'])
 
-# Get the weather for current location and return the proprietary icon index for it
-def get_weather_icon_index(geo_coords, api_key):
+def get_weather_info(geo_coords, api_key):
   current = requests.get('http://api.openweathermap.org/data/2.5/weather?lat={0}&lon={1}&appid={2}'.format(geo_coords[0], geo_coords[1], api_key))
   if current.status_code == 401:
     raise ValueError('That API key is no good. Go to https://home.openweathermap.org/ to get a key')
     sys.exit(1)
-  return current.json()['weather'][0]['icon'][:-1]
+  return current
+
+# Get the weather for current location and return the proprietary icon index for it
+def get_weather_icon_index(weather_info): 
+  return weather_info.json()['weather'][0]['icon'][:-1]
+
+def get_temperature(weather_info):
+  kelvin = weather_info.json()['main']['temp']
+  # Conversion of kelvin to farenheit
+  return int(1.8 * (kelvin - 273) + 32)
 
 # Cross reference our list with the current conditions, return an icon
 def retrieve_weather_icon(index, icon_dict):
@@ -63,7 +72,7 @@ def create_config(conf_file):
   geo_api: place_the_api_key_here
   # API key for https://openweathermap.org/
   weather_api: place_the_api_key_here
-
+  show_temperature: True
   [icons]
   sunny: 🌣
   mostly_sunny: 🌤
@@ -86,6 +95,9 @@ True if check_home_config(CONF_LOCATION) else create_config(CONF_LOCATION)
 settings = config_handler(CONF_LOCATION)
 public_ip_address = public_ip()
 coords = get_geo_data(public_ip_address, settings['geo_api'])
-icon_index = (get_weather_icon_index(coords, settings['weather_api']))
+weather = get_weather_info(coords, settings['weather_api'])
+icon_index = get_weather_icon_index(weather)
+temp = get_temperature(weather)
 # Output the icon to stdout
 print(retrieve_weather_icon(icon_index, settings['icons']), end="")
+print(str(temp) + '°F') if settings['temp_toggle'] else None
