@@ -4,6 +4,8 @@ import requests
 import socket
 import os.path
 import configparser
+import json
+import sys
 from pathlib import Path
 # Check for config file and values, give appropriate errors
 def check_home_config(conf):
@@ -37,11 +39,17 @@ def public_ip():
 # Grab geolocation info so that we can get the weather for it
 def get_geo_data(public_ip, api_key):
   geodata = requests.get('https://api.ipgeolocation.io/ipgeo?apiKey={0}&ip={1}'.format(api_key, public_ip))
+  if geodata.status_code == 401:
+    raise ValueError('That API key is no good.  Go to https://ipgeolocation.io/signup and get a key.')
+    sys.exit(1)
   return (geodata.json()['latitude'],geodata.json()['longitude'])
 
 # Get the weather for current location and return the proprietary icon index for it
 def get_weather_icon_index(geo_coords, api_key):
   current = requests.get('http://api.openweathermap.org/data/2.5/weather?lat={0}&lon={1}&appid={2}'.format(geo_coords[0], geo_coords[1], api_key))
+  if current.status_code == 401:
+    raise ValueError('That API key is no good. Go to https://home.openweathermap.org/ to get a key')
+    sys.exit(1)
   return current.json()['weather'][0]['icon'][:-1]
 
 # Cross reference our list with the current conditions, return an icon
@@ -74,6 +82,7 @@ def create_config(conf_file):
 
 CONF_LOCATION = str(Path.home()) + '/.config/ezwthr.conf'
 True if check_home_config(CONF_LOCATION) else create_config(CONF_LOCATION)
+
 settings = config_handler(CONF_LOCATION)
 public_ip_address = public_ip()
 coords = get_geo_data(public_ip_address, settings['geo_api'])
